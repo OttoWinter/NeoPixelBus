@@ -1,5 +1,5 @@
 /*-------------------------------------------------------------------------
-NeoPixel library helper functions for DotStars using general Pins (APA102).
+NeoPixel library helper functions for WS2801
 
 Written by Michael C. Miller.
 
@@ -34,12 +34,11 @@ License along with NeoPixel.  If not, see
 #endif
 
 
-template<typename T_TWOWIRE> class DotStarMethodBase
+template<typename T_TWOWIRE> class Ws2801MethodBase
 {
 public:
-	DotStarMethodBase(uint8_t pinClock, uint8_t pinData, uint16_t pixelCount, size_t elementSize, size_t settingsSize) :
+	Ws2801MethodBase(uint8_t pinClock, uint8_t pinData, uint16_t pixelCount, size_t elementSize, size_t settingsSize) :
         _sizeData(pixelCount * elementSize + settingsSize),
-		_sizeEndFrame((pixelCount + 15) / 16), // 16 = div 2 (bit for every two pixels) div 8 (bits to bytes)
 		_wire(pinClock, pinData)
     {
         _data = static_cast<uint8_t*>(malloc(_sizeData));
@@ -47,20 +46,22 @@ public:
     }
 
 #if !defined(__AVR_ATtiny85__) && !defined(ARDUINO_attiny)
-	DotStarMethodBase(uint16_t pixelCount, size_t elementSize, size_t settingsSize) :
-		DotStarMethodBase(SCK, MOSI, pixelCount, elementSize, settingsSize)
+	Ws2801MethodBase(uint16_t pixelCount, size_t elementSize, size_t settingsSize) :
+		Ws2801MethodBase(SCK, MOSI, pixelCount, elementSize, settingsSize)
 	{
 	}
 #endif
 
-    ~DotStarMethodBase()
+    ~Ws2801MethodBase()
     {
         free(_data);
     }
 
     bool IsReadyToUpdate() const
     {
-        return true; // dot stars don't have a required delay
+        uint32_t delta = micros() - _endTime;
+
+        return (delta >= 500);
     }
 
 #if defined(ARDUINO_ARCH_ESP32)
@@ -73,33 +74,28 @@ public:
     void Initialize()
     {
 		_wire.begin();
+
+        _endTime = micros();
     }
 
     void Update(bool)
     {
-		const uint8_t startFrame[4] = { 0x00 };
-		const uint8_t resetFrame[4] = { 0x00 };
-		
-		_wire.beginTransaction();
+        while (!IsReadyToUpdate())
+        {
+#if !defined(ARDUINO_TEEONARDU_LEO) && !defined(ARDUINO_TEEONARDU_FLORA)
+            yield(); // allows for system yield if needed
+#endif
+        }
 
-        // start frame
-		_wire.transmitBytes(startFrame, sizeof(startFrame));
+		_wire.beginTransaction();
         
         // data
 		_wire.transmitBytes(_data, _sizeData);
-
-       // reset frame
-		_wire.transmitBytes(resetFrame, sizeof(resetFrame));
         
-        // end frame 
-        
-		// one bit for every two pixels with no less than 1 byte
-		for (size_t endFrameByte = 0; endFrameByte < _sizeEndFrame; endFrameByte++)
-		{
-			_wire.transmitByte(0x00);
-		}
-		
 		_wire.endTransaction();
+
+        // save EOD time for latch on next call
+        _endTime = micros();
     }
 
     uint8_t* getData() const
@@ -113,22 +109,21 @@ public:
     };
 
 private:
-	const size_t   _sizeData;   // Size of '_data' buffer below
-	const size_t   _sizeEndFrame;
+    const size_t  _sizeData;   // Size of '_data' buffer below
 
-	T_TWOWIRE _wire;
+    uint32_t _endTime;       // Latch timing reference
+    T_TWOWIRE _wire;
     uint8_t* _data;       // Holds LED color values
 };
 
-typedef DotStarMethodBase<TwoWireBitBangImple> DotStarMethod;
+typedef Ws2801MethodBase<TwoWireBitBangImple> NeoWs2801Method;
 
 #if !defined(__AVR_ATtiny85__) && !defined(ARDUINO_attiny)
 #include "TwoWireSpiImple.h"
-typedef DotStarMethodBase<TwoWireSpiImple<SpiSpeed40Mhz>> DotStarSpi40MhzMethod;
-typedef DotStarMethodBase<TwoWireSpiImple<SpiSpeed20Mhz>> DotStarSpi20MhzMethod;
-typedef DotStarMethodBase<TwoWireSpiImple<SpiSpeed10Mhz>> DotStarSpi10MhzMethod;
-typedef DotStarMethodBase<TwoWireSpiImple<SpiSpeed2Mhz>> DotStarSpi2MhzMethod;
-typedef DotStarSpi10MhzMethod DotStarSpiMethod;
+typedef Ws2801MethodBase<TwoWireSpiImple<SpiSpeed20Mhz>> NeoWs2801Spi20MhzMethod;
+typedef Ws2801MethodBase<TwoWireSpiImple<SpiSpeed10Mhz>> NeoWs2801Spi10MhzMethod;
+typedef Ws2801MethodBase<TwoWireSpiImple<SpiSpeed2Mhz>> NeoWs2801Spi2MhzMethod;
+typedef NeoWs2801Spi10MhzMethod NeoWs2801SpiMethod;
 #endif
 
 

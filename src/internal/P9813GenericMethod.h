@@ -1,5 +1,5 @@
 /*-------------------------------------------------------------------------
-NeoPixel library helper functions for DotStars using general Pins (APA102).
+NeoPixel library helper functions for P9813s using general Pins (APA102).
 
 Written by Michael C. Miller.
 
@@ -34,10 +34,10 @@ License along with NeoPixel.  If not, see
 #endif
 
 
-template<typename T_TWOWIRE> class DotStarMethodBase
+template<typename T_TWOWIRE> class P9813MethodBase
 {
 public:
-	DotStarMethodBase(uint8_t pinClock, uint8_t pinData, uint16_t pixelCount, size_t elementSize, size_t settingsSize) :
+	P9813MethodBase(uint8_t pinClock, uint8_t pinData, uint16_t pixelCount, size_t elementSize, size_t settingsSize) :
         _sizeData(pixelCount * elementSize + settingsSize),
 		_sizeEndFrame((pixelCount + 15) / 16), // 16 = div 2 (bit for every two pixels) div 8 (bits to bytes)
 		_wire(pinClock, pinData)
@@ -47,13 +47,13 @@ public:
     }
 
 #if !defined(__AVR_ATtiny85__) && !defined(ARDUINO_attiny)
-	DotStarMethodBase(uint16_t pixelCount, size_t elementSize, size_t settingsSize) :
-		DotStarMethodBase(SCK, MOSI, pixelCount, elementSize, settingsSize)
+	P9813MethodBase(uint16_t pixelCount, size_t elementSize, size_t settingsSize) :
+		P9813MethodBase(SCK, MOSI, pixelCount, elementSize, settingsSize)
 	{
 	}
 #endif
 
-    ~DotStarMethodBase()
+    ~P9813MethodBase()
     {
         free(_data);
     }
@@ -78,7 +78,7 @@ public:
     void Update(bool)
     {
 		const uint8_t startFrame[4] = { 0x00 };
-		const uint8_t resetFrame[4] = { 0x00 };
+		const uint8_t endFrame[4] = { 0x00 };
 		
 		_wire.beginTransaction();
 
@@ -87,17 +87,9 @@ public:
         
         // data
 		_wire.transmitBytes(_data, _sizeData);
-
-       // reset frame
-		_wire.transmitBytes(resetFrame, sizeof(resetFrame));
         
         // end frame 
-        
-		// one bit for every two pixels with no less than 1 byte
-		for (size_t endFrameByte = 0; endFrameByte < _sizeEndFrame; endFrameByte++)
-		{
-			_wire.transmitByte(0x00);
-		}
+		_wire.transmitBytes(endFrame, sizeof(endFrame));        
 		
 		_wire.endTransaction();
     }
@@ -120,15 +112,14 @@ private:
     uint8_t* _data;       // Holds LED color values
 };
 
-typedef DotStarMethodBase<TwoWireBitBangImple> DotStarMethod;
+typedef P9813MethodBase<TwoWireBitBangImple> P9813Method;
 
 #if !defined(__AVR_ATtiny85__) && !defined(ARDUINO_attiny)
 #include "TwoWireSpiImple.h"
-typedef DotStarMethodBase<TwoWireSpiImple<SpiSpeed40Mhz>> DotStarSpi40MhzMethod;
-typedef DotStarMethodBase<TwoWireSpiImple<SpiSpeed20Mhz>> DotStarSpi20MhzMethod;
-typedef DotStarMethodBase<TwoWireSpiImple<SpiSpeed10Mhz>> DotStarSpi10MhzMethod;
-typedef DotStarMethodBase<TwoWireSpiImple<SpiSpeed2Mhz>> DotStarSpi2MhzMethod;
-typedef DotStarSpi10MhzMethod DotStarSpiMethod;
+typedef P9813MethodBase<TwoWireSpiImple<SpiSpeed20Mhz>> P9813Spi20MhzMethod;
+typedef P9813MethodBase<TwoWireSpiImple<SpiSpeed10Mhz>> P9813Spi10MhzMethod;
+typedef P9813MethodBase<TwoWireSpiImple<SpiSpeed2Mhz>> P9813Spi2MhzMethod;
+typedef P9813Spi10MhzMethod P9813SpiMethod;
 #endif
 
 
